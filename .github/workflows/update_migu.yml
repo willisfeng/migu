@@ -3,9 +3,9 @@ on:
   schedule: 
     # 错峰到每小时第 17 分：整点(0分)是全球高峰，GitHub 会排队延迟甚至丢弃
     - cron: '*/15 * * * *'
-  workflow_dispatch:
-  repository_dispatch: #允许外部触发,cf worker定时任务延迟在1分钟以内
-    types: [mgcron]
+  #workflow_dispatch:
+  #repository_dispatch: #允许外部触发,cf worker定时任务延迟在1分钟以内
+    #types: [mgcron]
 
 # 防止定时任务与手动触发撞车互相覆盖 m3u
 concurrency:
