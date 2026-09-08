@@ -1,0 +1,69 @@
+name: update migu
+on: 
+  schedule: 
+    # 错峰到每小时第 17 分：整点(0分)是全球高峰，GitHub 会排队延迟甚至丢弃
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  repository_dispatch: #允许外部触发,cf worker定时任务延迟在1分钟以内
+    types: [mgcron]
+
+# 防止定时任务与手动触发撞车互相覆盖 m3u
+concurrency:
+  group: update-migu
+  cancel-in-progress: false
+
+jobs:
+  main:
+    name: update migu
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # 总超时
+    permissions:
+      contents: write  # 允许推送代码
+    steps: 
+    - name: Checkout code
+      uses: actions/checkout@v7
+    - name: Setup Python
+      run: |
+          pip install requests futures
+    - name: fetch and modify with Retry
+      uses: nick-fields/retry@v4
+      with:
+        timeout_minutes: 5    # 单次尝试如果超过 5 分钟就判定为超时
+        max_attempts: 2       # 超时后重试 1 次 
+        retry_on: timeout     # 只有在超时的时候才触发重试
+        retry_wait_seconds: 30   # 每次重试之间的等待间隔 
+        command: |
+          python MIGU.py
+          python sort_m3u.py
+
+          #wget https://github.com/482349841209/rakuten-m3u-generator/raw/refs/heads/master/output/rakuten.m3u -O rkt.m3u  -t 2 --waitretry=5
+          #wget https://github.com/Afiq0/Pluto-TV-Playlists/raw/refs/heads/main/output/plutotv_us.m3u8 -O plt.m3u  -t 2 --waitretry=5
+
+          #wget http://epg.51zmt.top:8000/e.xml -O e.xml  -T 30 -t 2 --waitretry=5 || true
+
+          #wget https://github.com/xiaolin330328/ctv/raw/d259f83949249d918e0dfe109fe1774df8819f1e/%E7%AC%AC%E4%BA%8C -O op.txt  -t 2 --waitretry=5 
+          #sed -n '611,686p' op.txt > hm.txt
+    - name: CommitAndPush
+      run: |
+        # 获取仓库名称（${VAR#*/} 是 Bash 的字符串操作，去掉 owner/ 前缀）
+        REPO_NAME="${GITHUB_REPOSITORY#*/}"
+        git config --global user.email "github@github.com"
+        git config --global user.name "Github Actions"
+        
+        # 克隆仓库（使用 HTTPS + TOKEN 避免权限问题）
+        git clone "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+        cd "$REPO_NAME" || exit 1  # 强制失败时退出
+
+        # 后续操作...
+        [ -f "../migu.m3u" ] && mv ../migu.m3u ./migu.m3u || true
+        [ -f "../cctv.migu.m3u" ] && mv ../cctv.migu.m3u ./cctv.migu.m3u || true
+        [ -f ../rkt.m3u ] && mv ../rkt.m3u ./rakutentv.m3u || true
+        [ -f ../plt.m3u ] && mv ../plt.m3u ./plutotv.m3u || true
+
+        git add .
+        if git diff --cached --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "Update: $(date +'%Y-%m-%d %H:%M:%S') UTC"
+          git push origin main
+        fi
