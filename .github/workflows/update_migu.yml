@@ -1,7 +1,7 @@
 name: update migu
 on: 
   schedule: 
-    # 错峰到每小时第 17 分：整点(0分)是全球高峰，GitHub 会排队延迟甚至丢弃
+    # 错峰到每小时第 15 分：整点(0分)是全球高峰，GitHub 会排队延迟甚至丢弃
     - cron: '*/15 * * * *'
   #workflow_dispatch:
   #repository_dispatch: #允许外部触发,cf worker定时任务延迟在1分钟以内
